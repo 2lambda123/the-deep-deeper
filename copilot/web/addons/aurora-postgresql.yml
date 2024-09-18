@@ -18,52 +18,52 @@ Parameters:
 Mappings:
   DatabaseConfigurationMap:
     prod:
-      DBFamily: 'aurora-postgresql13'
+      DBFamily: "aurora-postgresql13"
       DBInstanceClass: db.r6g.large
       Engine: aurora-postgresql
-      EngineVersion: '13.4'
+      EngineVersion: "13.4"
       BackupRetentionPeriod: 7
       Port: 5432
     staging:
-      DBFamily: 'aurora-postgresql13'
+      DBFamily: "aurora-postgresql13"
       # DBInstanceClass: db.t4g.medium
       DBInstanceClass: db.r6g.large
       Engine: aurora-postgresql
-      EngineVersion: '13.4'
+      EngineVersion: "13.4"
       BackupRetentionPeriod: 7
       Port: 5432
 
 Resources:
   # KMS Key
   DbKmsKey:
-    Type: 'AWS::KMS::Key'
+    Type: "AWS::KMS::Key"
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       KeyPolicy:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action: 'kms:*'
-            Resource: '*'
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
           - Effect: Allow
             Principal:
-              AWS: '*'
+              AWS: "*"
             Action:
-              - 'kms:Encrypt'
-              - 'kms:Decrypt'
-              - 'kms:ReEncrypt*'
-              - 'kms:GenerateDataKey*'
-              - 'kms:CreateGrant'
-              - 'kms:ListGrants'
-              - 'kms:DescribeKey'
-            Resource: '*'
+              - "kms:Encrypt"
+              - "kms:Decrypt"
+              - "kms:ReEncrypt*"
+              - "kms:GenerateDataKey*"
+              - "kms:CreateGrant"
+              - "kms:ListGrants"
+              - "kms:DescribeKey"
+            Resource: "*"
             Condition:
               StringEquals:
-                'kms:CallerAccount': !Ref 'AWS::AccountId'
-                'kms:ViaService': !Sub 'rds.${AWS::Region}.amazonaws.com'
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+                "kms:ViaService": !Sub "rds.${AWS::Region}.amazonaws.com"
           - Sid: "[Backup-account] Allow use of the key"
             Effect: Allow
             Principal:
@@ -89,45 +89,45 @@ Resources:
                 kms:GrantIsForAWSResource: "true"
 
   AuroraKMSCMKAlias:
-    Type: 'AWS::KMS::Alias'
+    Type: "AWS::KMS::Alias"
     DeletionPolicy: Retain
-    DependsOn: ['DatabaseDBCluster']
+    DependsOn: ["DatabaseDBCluster"]
     Properties:
-      AliasName: !Sub 'alias/copilot-${App}-${Env}-${Name}-${DatabaseDBCluster}'
+      AliasName: !Sub "alias/copilot-${App}-${Env}-${Name}-${DatabaseDBCluster}"
       TargetKeyId: !Ref DbKmsKey
 
   DatabaseDBSubnetGroup:
-    Type: 'AWS::RDS::DBSubnetGroup'
+    Type: "AWS::RDS::DBSubnetGroup"
     Properties:
       DBSubnetGroupDescription: Group of Copilot private subnets for DB cluster/instance.
       SubnetIds:
-        !Split [',', { 'Fn::ImportValue': !Sub '${App}-${Env}-PrivateSubnets' }]
+        !Split [",", { "Fn::ImportValue": !Sub "${App}-${Env}-PrivateSubnets" }]
 
   DatabaseSecurityGroup:
     Metadata:
-      'aws:copilot:description': 'A security group for your workload to access the DB cluster/instance database'
-    Type: 'AWS::EC2::SecurityGroup'
+      "aws:copilot:description": "A security group for your workload to access the DB cluster/instance database"
+    Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: !Sub 'The Security Group for ${Name} to access DB cluster/instance database.'
+      GroupDescription: !Sub "The Security Group for ${Name} to access DB cluster/instance database."
       SecurityGroupIngress:
         - ToPort: !FindInMap [DatabaseConfigurationMap, !Ref Env, Port]
           FromPort: !FindInMap [DatabaseConfigurationMap, !Ref Env, Port]
           IpProtocol: tcp
-          Description: !Sub 'From the DB Security Group of the workload ${Name}.'
-          SourceSecurityGroupId: { 'Fn::ImportValue': !Sub '${App}-${Env}-EnvironmentSecurityGroup' }
+          Description: !Sub "From the DB Security Group of the workload ${Name}."
+          SourceSecurityGroupId:
+            { "Fn::ImportValue": !Sub "${App}-${Env}-EnvironmentSecurityGroup" }
       VpcId:
-        Fn::ImportValue:
-          !Sub '${App}-${Env}-VpcId'
+        Fn::ImportValue: !Sub "${App}-${Env}-VpcId"
       Tags:
         - Key: Name
-          Value: !Sub 'copilot-${App}-${Env}-${Name}-database'
+          Value: !Sub "copilot-${App}-${Env}-${Name}-database"
 
   DatabaseSecret:
     Metadata:
-      'aws:copilot:description': 'A Secrets Manager secret to store your DB credentials'
+      "aws:copilot:description": "A Secrets Manager secret to store your DB credentials"
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub '${AWS::StackName}-DatabaseSecret'
+      Name: !Sub "${AWS::StackName}-DatabaseSecret"
       Description: !Sub Database main user secret for ${AWS::StackName}
       GenerateSecretString:
         SecretStringTemplate: '{"username": "postgres"}'
@@ -138,28 +138,46 @@ Resources:
 
   DatabaseDBClusterParameterGroup:
     Metadata:
-      'aws:copilot:description': 'A DB parameter group for engine configuration values'
-    Type: 'AWS::RDS::DBClusterParameterGroup'
+      "aws:copilot:description": "A DB parameter group for engine configuration values"
+    Type: "AWS::RDS::DBClusterParameterGroup"
     Properties:
-      Description: !Ref 'AWS::StackName'
+      Description: !Ref "AWS::StackName"
       Family: !FindInMap [DatabaseConfigurationMap, !Ref Env, DBFamily]
       Parameters:
-        client_encoding: 'UTF8'
+        client_encoding: "UTF8"
         rds.force_ssl: 1
 
   DatabaseDBCluster:
     Metadata:
-      'aws:copilot:description': 'The database Aurora Serverless database cluster'
-    Type: 'AWS::RDS::DBCluster'
+      "aws:copilot:description": "The database Aurora Serverless database cluster"
+    Type: "AWS::RDS::DBCluster"
     DeletionPolicy: Snapshot
     Properties:
-      DBClusterIdentifier: !Sub '${AWS::StackName}-Cluster'
+      DBClusterIdentifier: !Sub "${AWS::StackName}-Cluster"
       DeletionProtection: true
       Engine: !FindInMap [DatabaseConfigurationMap, !Ref Env, Engine]
-      EngineVersion: !FindInMap [DatabaseConfigurationMap, !Ref Env, EngineVersion]
-      BackupRetentionPeriod: !FindInMap [DatabaseConfigurationMap, !Ref Env, BackupRetentionPeriod]
-      MasterUsername: !Join [ "",  [ '{{resolve:secretsmanager:', !Ref DatabaseSecret, ":SecretString:username}}" ]]
-      MasterUserPassword: !Join [ "",  [ '{{resolve:secretsmanager:', !Ref DatabaseSecret, ":SecretString:password}}" ]]
+      EngineVersion:
+        !FindInMap [DatabaseConfigurationMap, !Ref Env, EngineVersion]
+      BackupRetentionPeriod:
+        !FindInMap [DatabaseConfigurationMap, !Ref Env, BackupRetentionPeriod]
+      MasterUsername:
+        !Join [
+          "",
+          [
+            "{{resolve:secretsmanager:",
+            !Ref DatabaseSecret,
+            ":SecretString:username}}",
+          ],
+        ]
+      MasterUserPassword:
+        !Join [
+          "",
+          [
+            "{{resolve:secretsmanager:",
+            !Ref DatabaseSecret,
+            ":SecretString:password}}",
+          ],
+        ]
       DatabaseName: !Ref DBName
       DBClusterParameterGroupName: !Ref DatabaseDBClusterParameterGroup
       DBSubnetGroupName: !Ref DatabaseDBSubnetGroup
@@ -170,20 +188,21 @@ Resources:
         - !Ref DatabaseSecurityGroup
 
   DatabaseDBClusterInstanceParameterGroup:
-    Type: 'AWS::RDS::DBParameterGroup'
+    Type: "AWS::RDS::DBParameterGroup"
     Properties:
-      Description: !Ref 'AWS::StackName'
+      Description: !Ref "AWS::StackName"
       Family: !FindInMap [DatabaseConfigurationMap, !Ref Env, DBFamily]
 
   DatabaseDBClusterInstance1:
-    Type: 'AWS::RDS::DBInstance'
+    Type: "AWS::RDS::DBInstance"
     Properties:
-      DBInstanceIdentifier: !Sub '${AWS::StackName}-instance'
+      DBInstanceIdentifier: !Sub "${AWS::StackName}-instance"
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: true
       CopyTagsToSnapshot: true
       DBClusterIdentifier: !Ref DatabaseDBCluster
-      DBInstanceClass: !FindInMap [DatabaseConfigurationMap, !Ref Env, DBInstanceClass]
+      DBInstanceClass:
+        !FindInMap [DatabaseConfigurationMap, !Ref Env, DBInstanceClass]
       DBParameterGroupName: !Ref DatabaseDBClusterInstanceParameterGroup
       DBSubnetGroupName: !Ref DatabaseDBSubnetGroup
       Engine: !FindInMap [DatabaseConfigurationMap, !Ref Env, Engine]
